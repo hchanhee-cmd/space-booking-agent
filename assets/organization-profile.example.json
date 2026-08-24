@@ -1,0 +1,26 @@
+{
+  "organizationName": "Example Organization",
+  "appTitle": "Space Booking",
+  "timeZone": "Asia/Seoul",
+  "access": {
+    "requireSignedInUser": true,
+    "allowedDomains": ["example.org"]
+  },
+  "rooms": [
+    {
+      "id": "meeting-room-a",
+      "name": "Meeting Room A",
+      "calendarId": "replace-with-calendar-id"
+    }
+  ],
+  "meetingCalendarId": "",
+  "logging": {
+    "mode": "disabled",
+    "spreadsheetId": ""
+  },
+  "limits": {
+    "maxDurationMinutes": 480,
+    "maxAdvanceDays": 365,
+    "maxRecurrenceCount": 52
+  }
+}

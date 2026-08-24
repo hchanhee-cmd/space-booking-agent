@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root { color-scheme: light; --brand:#3157d5; --ink:#172033; --muted:#65708a; --line:#dce1ec; --bg:#f4f6fb; }
+      * { box-sizing:border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial,"Noto Sans KR",sans-serif; }
+      main { width:min(620px,calc(100% - 28px)); margin:32px auto; background:white; border-radius:18px; padding:28px; box-shadow:0 12px 32px rgba(29,44,85,.1); }
+      h1 { margin:0 0 8px; font-size:24px; }
+      .intro { margin:0 0 24px; color:var(--muted); line-height:1.55; }
+      .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+      label { display:block; margin:14px 0 6px; font-weight:700; font-size:14px; }
+      input,select,button { width:100%; min-height:46px; border-radius:10px; border:1px solid var(--line); padding:10px 12px; font-size:16px; background:white; }
+      input:focus,select:focus { outline:3px solid rgba(49,87,213,.15); border-color:var(--brand); }
+      .check { display:flex; gap:9px; align-items:center; margin-top:16px; font-weight:400; }
+      .check input { width:20px; min-height:20px; }
+      button { margin-top:22px; border:0; background:var(--brand); color:white; font-weight:700; cursor:pointer; }
+      button[disabled] { opacity:.55; cursor:wait; }
+      #status { margin-top:18px; padding:14px; border-radius:10px; background:#eef2ff; line-height:1.5; display:none; }
+      #status.error { background:#fff0f0; color:#8b1a1a; }
+      #status.success { background:#edf9f0; color:#17652a; }
+      .small { color:var(--muted); font-size:13px; }
+      @media (max-width:540px) { main{padding:20px}.grid{grid-template-columns:1fr} }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">공간예약</h1>
+      <p class="intro">날짜와 시간을 선택하면 예약 가능한 공간을 확인한 뒤 예약할 수 있습니다.</p>
+      <form id="bookingForm">
+        <div class="grid">
+          <div><label for="date">날짜</label><input id="date" type="date" required></div>
+          <div><label for="time">시작 시간</label><input id="time" type="time" required></div>
+        </div>
+        <label for="duration">사용 시간</label>
+        <select id="duration">
+          <option value="30">30분</option><option value="60" selected>1시간</option>
+          <option value="90">1시간 30분</option><option value="120">2시간</option>
+        </select>
+        <label for="subject">예약 목적</label><input id="subject" maxlength="120" required placeholder="예: 주간 회의">
+        <label for="room">공간</label><select id="room" required><option value="">먼저 예약 가능한 공간을 확인하세요</option></select>
+        <label class="check"><input id="recurring" type="checkbox">매주 같은 시간에 반복</label>
+        <div id="repeatOptions" hidden>
+          <label for="recurrenceCount">반복 횟수</label><input id="recurrenceCount" type="number" min="2" value="4">
+        </div>
+        <div id="meetingOptions" hidden>
+          <label class="check"><input id="createMeetingEvent" type="checkbox">내 일정 캘린더에도 일정 만들기</label>
+          <label class="check" id="meetRow" hidden><input id="addMeet" type="checkbox">Google Meet 링크도 만들기</label>
+        </div>
+        <button id="mainButton" type="button">예약 가능한 공간 확인</button>
+      </form>
+      <div id="status" role="status" aria-live="polite"></div>
+      <p class="small">예약 버튼을 다시 눌러도 같은 요청이 중복 생성되지 않도록 보호됩니다.</p>
+    </main>
+    <script>
+      const state = { config:null, availabilityLoaded:false, requestId:null };
+      const el = id => document.getElementById(id);
+      const status = (message,type='') => { el('status').textContent=message; el('status').className=type; el('status').style.display='block'; };
+      const fail = error => { setBusy(false); status(friendlyError(error),'error'); };
+      const friendlyError = error => {
+        const text = String(error && error.message || error || '');
+        if (text.includes('AUTH_REQUIRED')) return '회사 Google 계정으로 로그인한 뒤 다시 열어 주세요.';
+        if (text.includes('ACCESS_DENIED')) return '이 조직의 계정으로만 이용할 수 있습니다.';
+        if (text.includes('CONFIG_NOT_INSTALLED')) return '아직 조직 설정이 완료되지 않았습니다. 관리자에게 알려 주세요.';
+        return '요청을 처리하지 못했습니다. 입력 내용을 확인하고 다시 시도해 주세요.';
+      };
+      const setBusy = busy => { el('mainButton').disabled=busy; el('mainButton').textContent=busy?'확인 중…':(state.availabilityLoaded?'이 공간 예약하기':'예약 가능한 공간 확인'); };
+      const newRequestId = () => (self.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-request`);
+      const request = () => ({
+        date:el('date').value,time:el('time').value,durationMinutes:Number(el('duration').value),subject:el('subject').value,
+        roomId:el('room').value,recurring:el('recurring').checked,recurrenceCount:el('recurring').checked?Number(el('recurrenceCount').value):1,
+        createMeetingEvent:el('createMeetingEvent').checked,addMeet:el('addMeet').checked,requestId:state.requestId || (state.requestId=newRequestId())
+      });
+      function loadConfig(){ google.script.run.withSuccessHandler(config=>{state.config=config;el('title').textContent=config.appTitle;el('meetingOptions').hidden=!config.meetAvailable;const today=new Date();el('date').min=today.toISOString().slice(0,10);el('date').max=new Date(today.getTime()+config.limits.maxAdvanceDays*86400000).toISOString().slice(0,10);el('recurrenceCount').max=config.limits.maxRecurrenceCount;}).withFailureHandler(fail).getPublicConfig(); }
+      function checkAvailability(){ const data=request(); if(!el('bookingForm').reportValidity())return; setBusy(true); google.script.run.withSuccessHandler(rooms=>{setBusy(false);el('room').innerHTML='';rooms.forEach(room=>el('room').add(new Option(room.name,room.id)));if(!rooms.length){state.availabilityLoaded=false;status('선택한 시간에 예약 가능한 공간이 없습니다.','error');return;}state.availabilityLoaded=true;el('mainButton').textContent='이 공간 예약하기';status(`${rooms.length}개의 공간을 예약할 수 있습니다.`);}).withFailureHandler(fail).getAvailableRooms(data); }
+      function book(){ if(!el('bookingForm').reportValidity())return;setBusy(true);google.script.run.withSuccessHandler(result=>{setBusy(false);if(!result.ok){status(result.message,'error');return;}status([result.message].concat(result.warnings||[]).join(' '),'success');state.availabilityLoaded=false;state.requestId=null;el('mainButton').textContent='예약 가능한 공간 확인';}).withFailureHandler(fail).bookRoom(request()); }
+      el('mainButton').addEventListener('click',()=>state.availabilityLoaded?book():checkAvailability());
+      ['date','time','duration','subject','recurring','recurrenceCount'].forEach(id=>el(id).addEventListener('change',()=>{state.availabilityLoaded=false;state.requestId=null;el('mainButton').textContent='예약 가능한 공간 확인';}));
+      el('recurring').addEventListener('change',()=>el('repeatOptions').hidden=!el('recurring').checked);
+      el('createMeetingEvent').addEventListener('change',()=>{el('meetRow').hidden=!el('createMeetingEvent').checked;if(!el('createMeetingEvent').checked)el('addMeet').checked=false;});
+      loadConfig();
+    </script>
+  </body>
+</html>

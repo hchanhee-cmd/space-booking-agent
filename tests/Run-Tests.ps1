@@ -1,0 +1,42 @@
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
+$validator = Join-Path $root 'scripts\Test-OrganizationProfile.ps1'
+$example = Join-Path $root 'assets\organization-profile.example.json'
+$code = Join-Path $root 'assets\apps-script-template\Code.gs'
+$html = Join-Path $root 'assets\apps-script-template\index.html'
+$results = [Collections.Generic.List[object]]::new()
+
+function Check([string]$Name, [scriptblock]$Test) {
+    try { $ok = [bool](& $Test); $detail = if ($ok) { '' } else { 'Assertion returned false.' } }
+    catch { $ok = $false; $detail = $_.Exception.Message }
+    $results.Add([pscustomobject]@{ name=$Name; passed=$ok; detail=$detail })
+}
+
+Check 'Example profile validates' { (& $validator -ProfilePath $example | ConvertFrom-Json).valid }
+Check 'Example identifiers are masked' { ((& $validator -ProfilePath $example | ConvertFrom-Json).rooms[0].calendarId) -eq 'rep...-id' }
+Check 'No live organization profile is shipped' { -not (Test-Path (Join-Path $root 'organization-profile.json')) }
+Check 'Backend reads configuration from Script Properties' { (Get-Content -Raw $code) -match 'PropertiesService\.getScriptProperties' }
+Check 'Backend has no calendar address literals' { (Get-Content -Raw $code) -notmatch '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' }
+Check 'Signed-in account is used for identity' { (Get-Content -Raw $code) -match 'Session\.getActiveUser\(\)\.getEmail\(\)' }
+Check 'Script lock protects bookings' { (Get-Content -Raw $code) -match 'getScriptLock' }
+Check 'Duplicate requests are cached' { (Get-Content -Raw $code) -match 'request:\$\{normalized\.requestId\}' }
+Check 'Every recurrence date is conflict checked' { (Get-Content -Raw $code) -match 'hasAnyConflict_' }
+Check 'Rollback is implemented' { (Get-Content -Raw $code) -match 'function rollback_' }
+Check 'Required logging failure triggers rollback' { (Get-Content -Raw $code) -match "logging\.mode === 'required'" }
+Check 'Optional logging failure becomes a warning' { (Get-Content -Raw $code) -match "logging\.mode === 'optional'" }
+Check 'Meet failure becomes partial success' { (Get-Content -Raw $code) -match 'PARTIAL_SUCCESS' }
+Check 'Users can choose whether to create a meeting event' { (Get-Content -Raw $code) -match 'createMeetingEvent' }
+Check 'Unknown room is rejected server-side' { (Get-Content -Raw $code) -match 'UNKNOWN_ROOM' }
+Check 'Past requests are rejected' { (Get-Content -Raw $code) -match 'PAST_TIME' }
+Check 'Advance limit is enforced' { (Get-Content -Raw $code) -match 'TOO_FAR_AHEAD' }
+Check 'Duration limit is enforced' { (Get-Content -Raw $code) -match 'INVALID_DURATION' }
+Check 'Recurrence limit is enforced' { (Get-Content -Raw $code) -match 'INVALID_RECURRENCE' }
+Check 'Frame embedding is not opened globally' { (Get-Content -Raw $code) -notmatch 'ALLOWALL' }
+Check 'Web page includes accessible status updates' { (Get-Content -Raw $html) -match 'aria-live="polite"' }
+
+$failed = @($results | Where-Object { -not $_.passed })
+[pscustomobject]@{ total=$results.Count; passed=$results.Count-$failed.Count; failed=$failed.Count; results=$results } | ConvertTo-Json -Depth 5
+if ($failed.Count) { exit 1 }
