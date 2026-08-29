@@ -22,7 +22,7 @@ Check the selected weekdays, interval, occurrence limit, time zone, and every ge
 
 ## A user cannot find, change, or cancel a reservation
 
-Confirm that the same Google account that created the reservation is signed in, the full management token was copied without spaces, the token has not expired, and the reservation is still active. Administrators should see only aggregate health totals; do not reveal or reset a user's token in a support conversation.
+For an organization-only app, confirm that the same Google account that created the reservation is signed in and that the reservation has not been cancelled. For an external app, confirm that the full management token was copied without spaces and has not expired. Administrators should see only aggregate health totals; do not reveal or reset a user's token in a support conversation.
 
 ## Time change created a warning
 

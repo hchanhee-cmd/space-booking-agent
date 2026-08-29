@@ -20,6 +20,7 @@ const context = {
   Map,
   PropertiesService: { getScriptProperties: () => scriptProperties },
   CalendarApp: { getCalendarById: id => calendars.get(id) || null },
+  Session: { getActiveUser: () => ({ getEmail: () => 'owner@example.org' }) },
   Utilities: {
     DigestAlgorithm: { SHA_256: 'sha256' },
     Charset: { UTF_8: 'utf8' },
@@ -73,14 +74,29 @@ calendars.set('cal-a', freeCalendar);
 context.normalized = evaluate('validateRequest_(testRequest, testConfig, true)');
 test('Alternatives are conflict checked and limited', () => { const suggestions = evaluate('findAlternatives_(testConfig, normalized, 3)'); expect(suggestions.length === 3, 'wrong suggestion count'); });
 
-context.record = { status:'active', userEmail:'owner@example.org', expiresUtc:new Date(Date.now()+86400000).toISOString(), roomName:'Room A' };
+context.record = { bookingId:'11111111-2222-3333-4444-555555555555', status:'active', userEmail:'owner@example.org', expiresUtc:new Date(Date.now()+86400000).toISOString(), roomName:'Room A' };
 evaluate('saveBookingRecord_("A".repeat(64), record)');
 test('Management record round-trips with correct owner', () => expect(evaluate('requireOwnedRecord_("A".repeat(64), "owner@example.org").roomName') === 'Room A', 'record mismatch'));
 test('Management record hides existence from another owner', () => expectThrows(() => evaluate('requireOwnedRecord_("A".repeat(64), "other@example.org")'), 'BOOKING_NOT_FOUND'));
+test('Account booking lookup works for the owner', () => expect(evaluate('requireOwnedRecordById_(record.bookingId, "owner@example.org").record.roomName') === 'Room A', 'account lookup failed'));
+test('Account booking lookup rejects another user', () => expectThrows(() => evaluate('requireOwnedRecordById_(record.bookingId, "other@example.org")'), 'BOOKING_NOT_FOUND'));
 context.expiredRecord = { ...context.record, expiresUtc:new Date(Date.now()-86400000).toISOString() };
 evaluate('saveBookingRecord_("B".repeat(64), expiredRecord)');
 test('Expired management token is rejected', () => expectThrows(() => evaluate('requireOwnedRecord_("B".repeat(64), "owner@example.org")'), 'MANAGEMENT_TOKEN_EXPIRED'));
 test('Raw management token is not stored', () => expect(![...properties.keys(), ...properties.values()].some(value => String(value).includes('A'.repeat(64))), 'raw token found'));
+
+const installedConfig = {
+  appTitle:'Test Booking', timeZone:'UTC', rooms:config.rooms, meetingCalendarId:'',
+  access:{ requireSignedInUser:true, allowedDomains:['example.org'], adminEmails:[] },
+  logging:{ mode:'disabled', spreadsheetId:'' }, notifications:{ emailConfirmation:false },
+  management:{ enabled:true, tokenExpiryDays:30 }, limits:config.limits
+};
+properties.set('SPACE_BOOKING_CONFIG', JSON.stringify(installedConfig));
+test('Internal configuration selects account management', () => expect(evaluate('getPublicConfig().managementMode') === 'account', 'wrong internal mode'));
+test('My Bookings returns only the signed-in owner records', () => expect(evaluate('getMyBookings().length') === 1, 'owned booking not listed'));
+properties.set('SPACE_BOOKING_CONFIG', JSON.stringify({ ...installedConfig, access:{ requireSignedInUser:false, allowedDomains:[], adminEmails:[] } }));
+test('External configuration selects token management', () => expect(evaluate('getPublicConfig().managementMode') === 'token', 'wrong external mode'));
+properties.set('SPACE_BOOKING_CONFIG', JSON.stringify(installedConfig));
 
 let createCount = 0;
 let firstEventDeleted = false;

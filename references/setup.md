@@ -10,6 +10,13 @@ Explain that a Calendar ID is the calendar's address, not a password. Tell the u
 
 ## Profile format
 
+Offer one preset before individual questions:
+
+- **회사 내부용 (권장):** signed-in organization accounts, account-based `내 예약`, no confirmation email, optional logging.
+- **회사 내부용 + 이메일:** same as above with confirmation email.
+- **외부 예약용:** token-based management; review access and abuse controls carefully before deployment.
+- **직접 설정:** expose all options only when the user asks.
+
 Create a local JSON file from `assets/organization-profile.example.json`. Use real values only in the user's private working folder and exclude that file from Git.
 
 Required fields:
@@ -34,6 +41,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Organizat
 ```
 
 The validator returns a masked preview suitable for confirmation. Do not paste the unmasked profile into a public conversation.
+
+The web app selects the management experience automatically. When `requireSignedInUser` is true, users see `내 예약` and no token. When it is false, users receive a management token. Do not ask an internal user to choose this technical detail separately.
 
 ## Install the web app
 

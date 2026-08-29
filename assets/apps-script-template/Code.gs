@@ -17,7 +17,8 @@ function getPublicConfig() {
     rooms: config.rooms.map(room => ({ id: room.id, name: room.name })),
     limits: config.limits,
     meetAvailable: Boolean(config.meetingCalendarId),
-    managementEnabled: config.management.enabled
+    managementEnabled: config.management.enabled,
+    managementMode: !config.management.enabled ? 'disabled' : (config.access.requireSignedInUser ? 'account' : 'token')
   };
 }
 
@@ -87,10 +88,11 @@ function bookRoom(request) {
     const token = createManagementToken_();
     const record = {
       version: 1,
+      bookingId: Utilities.getUuid(),
       status: 'active',
       createdUtc: new Date().toISOString(),
       updatedUtc: new Date().toISOString(),
-      expiresUtc: new Date(Date.now() + config.management.tokenExpiryDays * 86400000).toISOString(),
+      expiresUtc: new Date(Math.max(Date.now(), dates[dates.length - 1].getTime() + normalized.durationMinutes * 60000) + config.management.tokenExpiryDays * 86400000).toISOString(),
       userEmail,
       roomId: room.id,
       roomName: room.name,
@@ -106,7 +108,7 @@ function bookRoom(request) {
     saveBookingRecord_(token, record);
 
     if (config.notifications.emailConfirmation && userEmail) {
-      try { sendConfirmation_(config, record, config.management.enabled ? token : '', '예약이 완료되었습니다.'); }
+      try { sendConfirmation_(config, record, config.management.enabled && !config.access.requireSignedInUser ? token : '', '예약이 완료되었습니다.'); }
       catch (error) { warnings.push('예약은 완료됐지만 확인 이메일은 보내지 못했습니다.'); }
     }
 
@@ -116,7 +118,8 @@ function bookRoom(request) {
       message: warnings.length ? '예약은 완료됐지만 확인할 사항이 있습니다.' : '예약이 완료되었습니다.',
       roomName: room.name,
       occurrenceCount: dates.length,
-      managementToken: config.management.enabled ? token : '',
+      managementToken: config.management.enabled && !config.access.requireSignedInUser ? token : '',
+      accountManaged: config.management.enabled && config.access.requireSignedInUser,
       warnings
     };
     CacheService.getScriptCache().put(`request:${normalized.requestId}`, JSON.stringify(result), REQUEST_TTL_SECONDS);
@@ -136,7 +139,20 @@ function getBooking(managementToken) {
   return publicBooking_(record);
 }
 
-function cancelBooking(managementToken) {
+function getMyBookings() {
+  const config = getConfig_();
+  if (!config.management.enabled || !config.access.requireSignedInUser) throw new Error('ACCOUNT_MANAGEMENT_UNAVAILABLE');
+  const userEmail = assertAuthorized_(config);
+  return getAllBookingHandles_()
+    .map(handle => handle.record)
+    .filter(record => record.userEmail && String(record.userEmail).toLowerCase() === String(userEmail).toLowerCase())
+    .filter(record => new Date(record.expiresUtc) >= new Date())
+    .filter(record => record.status !== 'cancelled')
+    .sort((a, b) => String(b.createdUtc).localeCompare(String(a.createdUtc)))
+    .map(publicBooking_);
+}
+
+function cancelBooking(managementToken, bookingId) {
   const config = getConfig_();
   if (!config.management.enabled) return failure_('MANAGEMENT_DISABLED', '이 조직은 직접 예약 취소 기능을 사용하지 않습니다.');
   const userEmail = assertAuthorized_(config);
@@ -144,16 +160,17 @@ function cancelBooking(managementToken) {
   if (!lock.tryLock(30000)) return failure_('SERVER_BUSY', '다른 예약을 처리하고 있습니다. 잠시 후 다시 시도해 주세요.');
   try {
     enforceRateLimit_(userEmail || 'anonymous', config);
-    const record = requireOwnedRecord_(managementToken, userEmail);
+    const handle = getManagementHandle_(config, managementToken, bookingId, userEmail);
+    const record = handle.record;
     if (record.status !== 'active') return failure_('NOT_ACTIVE', '이미 취소되었거나 변경할 수 없는 예약입니다.');
     const warnings = deleteEventReferences_(record.events);
     record.status = warnings.length ? 'cancellation_pending' : 'cancelled';
     record.updatedUtc = new Date().toISOString();
-    saveBookingRecord_(managementToken, record);
+    saveBookingHandle_(handle, record);
     try { appendManagementLog_(config, 'CANCELLED', record, userEmail); }
     catch (error) { if (config.logging.mode !== 'disabled') warnings.push('취소 결과를 기록 시트에 남기지 못했습니다.'); }
     if (config.notifications.emailConfirmation && userEmail) {
-      try { sendConfirmation_(config, record, managementToken, '예약 취소 결과입니다.'); }
+      try { sendConfirmation_(config, record, config.access.requireSignedInUser ? '' : managementToken, '예약 취소 결과입니다.'); }
       catch (error) { warnings.push('취소 결과 이메일을 보내지 못했습니다.'); }
     }
     return {
@@ -169,7 +186,7 @@ function cancelBooking(managementToken) {
   }
 }
 
-function rescheduleBooking(managementToken, request) {
+function rescheduleBooking(managementToken, request, bookingId) {
   const config = getConfig_();
   if (!config.management.enabled) return failure_('MANAGEMENT_DISABLED', '이 조직은 직접 시간 변경 기능을 사용하지 않습니다.');
   const userEmail = assertAuthorized_(config);
@@ -182,7 +199,8 @@ function rescheduleBooking(managementToken, request) {
   let created = [];
   try {
     enforceRateLimit_(userEmail || 'anonymous', config);
-    const record = requireOwnedRecord_(managementToken, userEmail);
+    const handle = getManagementHandle_(config, managementToken, bookingId, userEmail);
+    const record = handle.record;
     if (record.status !== 'active') return failure_('NOT_ACTIVE', '이미 취소되었거나 변경할 수 없는 예약입니다.');
     const oldRoomEventIds = record.events.filter(item => item.kind === 'room' && item.calendarId === room.calendarId).map(item => item.eventId);
     const dates = calculateDates_(normalized);
@@ -210,12 +228,13 @@ function rescheduleBooking(managementToken, request) {
     record.time = normalized.time;
     record.durationMinutes = normalized.durationMinutes;
     record.recurrenceCount = normalized.recurrenceCount;
+    record.expiresUtc = new Date(Math.max(Date.now(), dates[dates.length - 1].getTime() + normalized.durationMinutes * 60000) + config.management.tokenExpiryDays * 86400000).toISOString();
     record.createMeetingEvent = normalized.createMeetingEvent;
     record.addMeet = normalized.addMeet;
     record.events = created.events.map(toEventReference_);
-    saveBookingRecord_(managementToken, record);
+    saveBookingHandle_(handle, record);
     if (config.notifications.emailConfirmation && userEmail) {
-      try { sendConfirmation_(config, record, managementToken, '예약 시간이 변경되었습니다.'); }
+      try { sendConfirmation_(config, record, config.access.requireSignedInUser ? '' : managementToken, '예약 시간이 변경되었습니다.'); }
       catch (error) { warnings.push('변경 결과 이메일을 보내지 못했습니다.'); }
     }
     return {
@@ -441,18 +460,47 @@ function saveBookingRecord_(token, record) {
 }
 
 function requireOwnedRecord_(token, userEmail) {
+  return requireOwnedRecordHandle_(token, userEmail).record;
+}
+
+function requireOwnedRecordHandle_(token, userEmail) {
   if (!/^[A-Za-z0-9]{40,100}$/.test(String(token || ''))) throw new Error('INVALID_MANAGEMENT_TOKEN');
-  const raw = PropertiesService.getScriptProperties().getProperty(`${BOOKING_PREFIX}${digest_(token)}`);
+  const key = `${BOOKING_PREFIX}${digest_(token)}`;
+  const raw = PropertiesService.getScriptProperties().getProperty(key);
   if (!raw) throw new Error('BOOKING_NOT_FOUND');
   const record = JSON.parse(raw);
   if (new Date(record.expiresUtc) < new Date()) throw new Error('MANAGEMENT_TOKEN_EXPIRED');
   if (record.userEmail && String(record.userEmail).toLowerCase() !== String(userEmail).toLowerCase()) throw new Error('BOOKING_NOT_FOUND');
-  return record;
+  return { key, record };
+}
+
+function getAllBookingHandles_() {
+  const properties = PropertiesService.getScriptProperties().getProperties();
+  return Object.keys(properties)
+    .filter(key => key.startsWith(BOOKING_PREFIX))
+    .map(key => ({ key, record: JSON.parse(properties[key]) }));
+}
+
+function requireOwnedRecordById_(bookingId, userEmail) {
+  if (!/^[A-Za-z0-9-]{20,80}$/.test(String(bookingId || ''))) throw new Error('BOOKING_NOT_FOUND');
+  const handle = getAllBookingHandles_().find(item => item.record.bookingId === bookingId && item.record.userEmail && String(item.record.userEmail).toLowerCase() === String(userEmail).toLowerCase());
+  if (!handle || new Date(handle.record.expiresUtc) < new Date()) throw new Error('BOOKING_NOT_FOUND');
+  return handle;
+}
+
+function getManagementHandle_(config, token, bookingId, userEmail) {
+  return config.access.requireSignedInUser
+    ? requireOwnedRecordById_(bookingId, userEmail)
+    : requireOwnedRecordHandle_(token, userEmail);
+}
+
+function saveBookingHandle_(handle, record) {
+  PropertiesService.getScriptProperties().setProperty(handle.key, JSON.stringify(record));
 }
 
 function publicBooking_(record) {
   return {
-    status: record.status, roomName: record.roomName, subject: record.subject,
+    bookingId: record.bookingId, status: record.status, roomName: record.roomName, subject: record.subject,
     date: record.date, time: record.time, durationMinutes: record.durationMinutes,
     recurrenceCount: record.recurrenceCount, createMeetingEvent: record.createMeetingEvent, addMeet: record.addMeet
   };

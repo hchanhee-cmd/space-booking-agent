@@ -37,6 +37,10 @@ Check 'Recurrence limit is enforced' { (Get-Content -Raw $code) -match 'INVALID_
 Check 'Frame embedding is not opened globally' { (Get-Content -Raw $code) -notmatch 'ALLOWALL' }
 Check 'Web page includes accessible status updates' { (Get-Content -Raw $html) -match 'aria-live="polite"' }
 Check 'Booking management lookup exists' { (Get-Content -Raw $code) -match 'function getBooking' }
+Check 'Internal users can list their own bookings' { (Get-Content -Raw $code) -match 'function getMyBookings' }
+Check 'Management mode is derived from sign-in policy' { (Get-Content -Raw $code) -match "managementMode:.*requireSignedInUser" }
+Check 'Internal booking result hides management token' { (Get-Content -Raw $code) -match "managementToken:.*!config\.access\.requireSignedInUser" }
+Check 'Account lookup verifies the booking owner' { (Get-Content -Raw $code) -match 'function requireOwnedRecordById_' }
 Check 'Cancellation requires owned record' { (Get-Content -Raw $code) -match 'function cancelBooking' -and (Get-Content -Raw $code) -match 'requireOwnedRecord_' }
 Check 'Rescheduling checks conflicts before replacement' { (Get-Content -Raw $code) -match 'function rescheduleBooking' }
 Check 'Alternative suggestions are generated server-side' { (Get-Content -Raw $code) -match 'function findAlternatives_' }
@@ -46,6 +50,8 @@ Check 'Confirmation email is optional' { (Get-Content -Raw $code) -match 'notifi
 Check 'Admin summary returns aggregate counts' { (Get-Content -Raw $code) -match 'function getAdminSummary' }
 Check 'Expired management records have a cleanup function' { (Get-Content -Raw $code) -match 'function purgeExpiredBookingRecords' }
 Check 'Management interface is present' { (Get-Content -Raw $html) -match 'id="manageTab"' }
+Check 'Internal interface uses an account-specific label' { (Get-Content -Raw $html) -match "managementMode==='account'" }
+Check 'Token input is hidden outside token mode' { (Get-Content -Raw $html) -match "tokenLookup.*managementMode!=='token'" }
 Check 'Alternative buttons require another explicit action' { (Get-Content -Raw $html) -match 'renderAlternatives' }
 Check 'Disabled management is rejected server-side' { (Get-Content -Raw $code) -match 'MANAGEMENT_DISABLED' }
 Check 'Email manifests request mail scope only when selected' { (Get-Content -Raw (Join-Path $root 'assets\apps-script-template\appsscript.with-email.json')) -match 'script.send_mail' }

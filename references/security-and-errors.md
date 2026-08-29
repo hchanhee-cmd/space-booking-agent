@@ -6,7 +6,7 @@ An owner-executed web app can use the owner's Calendar and Sheets permissions. T
 
 The reusable source and public repository must not contain live calendar IDs, spreadsheet IDs, deployment URLs, organization names, or user inventories.
 
-Self-service management uses a long random token plus the signed-in account. Only a SHA-256 digest of the token is stored. The raw token appears only in the creator's success screen and optional confirmation email. Do not put it in logs, administrator summaries, screenshots, or support tickets.
+For an organization-only deployment, self-service management uses the signed-in Google account and shows only records owned by that account; the raw management token remains hidden. For an external deployment without reliable account identity, use a long random token. Only a SHA-256 digest of that token is stored. The raw token appears only in the creator's success screen and optional confirmation email. Do not put it in logs, administrator summaries, screenshots, or support tickets.
 
 ## Validation
 
