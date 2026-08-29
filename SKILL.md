@@ -7,6 +7,10 @@ description: Set up, configure, inspect, or update an organization-specific Goog
 
 Help a beginner create and maintain a browser-based space-booking system. The web app handles everyday reservations; this skill handles setup, organization-specific configuration, deployment, verification, and updates.
 
+## Language
+
+Match the user's language throughout setup, configuration previews, approvals, troubleshooting, and completion reports. Korean and English are fully supported. If the opening request is ambiguous, offer `한국어 / English` once. Configure and verify the booking page's visible language switch. Language selection may translate interface copy and system messages, but must not translate organization names, room names, calendar names, or user-entered booking subjects.
+
 ## Operating modes
 
 - **New setup:** collect the minimum organization profile, generate configuration, and guide installation.
