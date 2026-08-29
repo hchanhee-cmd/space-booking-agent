@@ -36,6 +36,26 @@ Check 'Duration limit is enforced' { (Get-Content -Raw $code) -match 'INVALID_DU
 Check 'Recurrence limit is enforced' { (Get-Content -Raw $code) -match 'INVALID_RECURRENCE' }
 Check 'Frame embedding is not opened globally' { (Get-Content -Raw $code) -notmatch 'ALLOWALL' }
 Check 'Web page includes accessible status updates' { (Get-Content -Raw $html) -match 'aria-live="polite"' }
+Check 'Booking management lookup exists' { (Get-Content -Raw $code) -match 'function getBooking' }
+Check 'Cancellation requires owned record' { (Get-Content -Raw $code) -match 'function cancelBooking' -and (Get-Content -Raw $code) -match 'requireOwnedRecord_' }
+Check 'Rescheduling checks conflicts before replacement' { (Get-Content -Raw $code) -match 'function rescheduleBooking' }
+Check 'Alternative suggestions are generated server-side' { (Get-Content -Raw $code) -match 'function findAlternatives_' }
+Check 'Raw management tokens are hashed before storage' { (Get-Content -Raw $code) -match 'BOOKING_PREFIX\}\$\{digest_\(token\)' }
+Check 'Rate limiting is enforced on mutations' { (Get-Content -Raw $code) -match 'function enforceRateLimit_' }
+Check 'Confirmation email is optional' { (Get-Content -Raw $code) -match 'notifications\.emailConfirmation' }
+Check 'Admin summary returns aggregate counts' { (Get-Content -Raw $code) -match 'function getAdminSummary' }
+Check 'Expired management records have a cleanup function' { (Get-Content -Raw $code) -match 'function purgeExpiredBookingRecords' }
+Check 'Management interface is present' { (Get-Content -Raw $html) -match 'id="manageTab"' }
+Check 'Alternative buttons require another explicit action' { (Get-Content -Raw $html) -match 'renderAlternatives' }
+Check 'Disabled management is rejected server-side' { (Get-Content -Raw $code) -match 'MANAGEMENT_DISABLED' }
+Check 'Email manifests request mail scope only when selected' { (Get-Content -Raw (Join-Path $root 'assets\apps-script-template\appsscript.with-email.json')) -match 'script.send_mail' }
+
+$nodeRaw = & node (Join-Path $PSScriptRoot 'apps-script.test.js')
+if ($LASTEXITCODE -ne 0) { throw ($nodeRaw -join [Environment]::NewLine) }
+$nodeResult = ($nodeRaw -join [Environment]::NewLine) | ConvertFrom-Json
+foreach ($item in $nodeResult.results) {
+    $results.Add([pscustomobject]@{ name=('Runtime: ' + $item.name); passed=[bool]$item.passed; detail=$item.detail })
+}
 
 $failed = @($results | Where-Object { -not $_.passed })
 [pscustomobject]@{ total=$results.Count; passed=$results.Count-$failed.Count; failed=$failed.Count; results=$results } | ConvertTo-Json -Depth 5

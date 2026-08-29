@@ -4,7 +4,8 @@
   "timeZone": "Asia/Seoul",
   "access": {
     "requireSignedInUser": true,
-    "allowedDomains": ["example.org"]
+    "allowedDomains": ["example.org"],
+    "adminEmails": ["booking-admin@example.org"]
   },
   "rooms": [
     {
@@ -18,9 +19,18 @@
     "mode": "disabled",
     "spreadsheetId": ""
   },
+  "notifications": {
+    "emailConfirmation": false
+  },
+  "management": {
+    "enabled": true,
+    "tokenExpiryDays": 30
+  },
   "limits": {
     "maxDurationMinutes": 480,
     "maxAdvanceDays": 365,
-    "maxRecurrenceCount": 52
+    "maxRecurrenceCount": 52,
+    "alternativeSearchDays": 7,
+    "maxRequestsPerMinute": 20
   }
 }

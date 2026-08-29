@@ -5,82 +5,105 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-      :root { color-scheme: light; --brand:#3157d5; --ink:#172033; --muted:#65708a; --line:#dce1ec; --bg:#f4f6fb; }
+      :root { color-scheme:light; --brand:#3157d5; --ink:#172033; --muted:#65708a; --line:#dce1ec; --bg:#f4f6fb; --danger:#a62626; }
       * { box-sizing:border-box; }
       body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial,"Noto Sans KR",sans-serif; }
-      main { width:min(620px,calc(100% - 28px)); margin:32px auto; background:white; border-radius:18px; padding:28px; box-shadow:0 12px 32px rgba(29,44,85,.1); }
-      h1 { margin:0 0 8px; font-size:24px; }
-      .intro { margin:0 0 24px; color:var(--muted); line-height:1.55; }
+      main { width:min(660px,calc(100% - 28px)); margin:32px auto; background:white; border-radius:18px; padding:28px; box-shadow:0 12px 32px rgba(29,44,85,.1); }
+      h1 { margin:0 0 8px; font-size:24px; } h2 { font-size:19px; margin:22px 0 8px; }
+      .intro { margin:0 0 20px; color:var(--muted); line-height:1.55; }
+      .tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:20px; padding:4px; border-radius:12px; background:var(--bg); }
+      .tab { margin:0; min-height:42px; background:transparent; color:var(--muted); }
+      .tab.active { background:white; color:var(--brand); box-shadow:0 2px 8px rgba(29,44,85,.08); }
       .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
       label { display:block; margin:14px 0 6px; font-weight:700; font-size:14px; }
       input,select,button { width:100%; min-height:46px; border-radius:10px; border:1px solid var(--line); padding:10px 12px; font-size:16px; background:white; }
       input:focus,select:focus { outline:3px solid rgba(49,87,213,.15); border-color:var(--brand); }
       .check { display:flex; gap:9px; align-items:center; margin-top:16px; font-weight:400; }
       .check input { width:20px; min-height:20px; }
-      button { margin-top:22px; border:0; background:var(--brand); color:white; font-weight:700; cursor:pointer; }
+      button { margin-top:20px; border:0; background:var(--brand); color:white; font-weight:700; cursor:pointer; }
+      button.secondary { background:#edf1ff; color:var(--brand); }
+      button.danger { background:#fff0f0; color:var(--danger); border:1px solid #f2caca; }
       button[disabled] { opacity:.55; cursor:wait; }
-      #status { margin-top:18px; padding:14px; border-radius:10px; background:#eef2ff; line-height:1.5; display:none; }
-      #status.error { background:#fff0f0; color:#8b1a1a; }
-      #status.success { background:#edf9f0; color:#17652a; }
-      .small { color:var(--muted); font-size:13px; }
-      @media (max-width:540px) { main{padding:20px}.grid{grid-template-columns:1fr} }
+      #status { margin-top:18px; padding:14px; border-radius:10px; background:#eef2ff; line-height:1.55; display:none; white-space:pre-line; }
+      #status.error { background:#fff0f0; color:#8b1a1a; } #status.success { background:#edf9f0; color:#17652a; }
+      .small { color:var(--muted); font-size:13px; line-height:1.5; }
+      .card { margin-top:16px; padding:16px; border:1px solid var(--line); border-radius:12px; background:#fafbfe; line-height:1.65; }
+      .token { display:block; margin-top:8px; padding:10px; border-radius:8px; background:white; border:1px dashed var(--line); word-break:break-all; font-family:monospace; }
+      .alternatives { display:grid; gap:8px; margin-top:12px; }
+      .alternative { margin:0; text-align:left; background:white; color:var(--brand); border:1px solid #cbd5ff; }
+      .actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+      [hidden] { display:none !important; }
+      @media (max-width:540px) { main{padding:20px}.grid,.actions{grid-template-columns:1fr} }
     </style>
   </head>
   <body>
     <main>
       <h1 id="title">공간예약</h1>
       <p class="intro">날짜와 시간을 선택하면 예약 가능한 공간을 확인한 뒤 예약할 수 있습니다.</p>
-      <form id="bookingForm">
-        <div class="grid">
-          <div><label for="date">날짜</label><input id="date" type="date" required></div>
-          <div><label for="time">시작 시간</label><input id="time" type="time" required></div>
+      <div class="tabs">
+        <button class="tab active" id="bookingTab" type="button">새 예약</button>
+        <button class="tab" id="manageTab" type="button">예약 확인·변경·취소</button>
+      </div>
+
+      <section id="bookingSection">
+        <div id="rescheduleNotice" class="card" hidden>예약 시간을 변경하고 있습니다. 새 날짜와 시간을 선택해 주세요.</div>
+        <form id="bookingForm">
+          <div class="grid">
+            <div><label for="date">날짜</label><input id="date" type="date" required></div>
+            <div><label for="time">시작 시간</label><input id="time" type="time" required></div>
+          </div>
+          <label for="duration">사용 시간</label>
+          <select id="duration"><option value="30">30분</option><option value="60" selected>1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option></select>
+          <label for="subject">예약 목적</label><input id="subject" maxlength="120" required placeholder="예: 주간 회의">
+          <label for="room">공간</label><select id="room" required><option value="">먼저 예약 가능한 공간을 확인하세요</option></select>
+          <label class="check"><input id="recurring" type="checkbox">매주 같은 시간에 반복</label>
+          <div id="repeatOptions" hidden><label for="recurrenceCount">반복 횟수</label><input id="recurrenceCount" type="number" min="2" value="4"></div>
+          <div id="meetingOptions" hidden>
+            <label class="check"><input id="createMeetingEvent" type="checkbox">내 일정 캘린더에도 일정 만들기</label>
+            <label class="check" id="meetRow" hidden><input id="addMeet" type="checkbox">Google Meet 링크도 만들기</label>
+          </div>
+          <button id="mainButton" type="button">예약 가능한 공간 확인</button>
+        </form>
+        <div id="alternatives" class="alternatives"></div>
+      </section>
+
+      <section id="manageSection" hidden>
+        <label for="managementToken">예약 관리 번호</label>
+        <input id="managementToken" autocomplete="off" placeholder="예약 완료 화면이나 이메일의 관리 번호">
+        <button id="lookupButton" type="button">내 예약 확인</button>
+        <div id="bookingCard" class="card" hidden></div>
+        <div id="manageActions" class="actions" hidden>
+          <button id="rescheduleButton" class="secondary" type="button">시간 변경</button>
+          <button id="cancelButton" class="danger" type="button">예약 취소</button>
         </div>
-        <label for="duration">사용 시간</label>
-        <select id="duration">
-          <option value="30">30분</option><option value="60" selected>1시간</option>
-          <option value="90">1시간 30분</option><option value="120">2시간</option>
-        </select>
-        <label for="subject">예약 목적</label><input id="subject" maxlength="120" required placeholder="예: 주간 회의">
-        <label for="room">공간</label><select id="room" required><option value="">먼저 예약 가능한 공간을 확인하세요</option></select>
-        <label class="check"><input id="recurring" type="checkbox">매주 같은 시간에 반복</label>
-        <div id="repeatOptions" hidden>
-          <label for="recurrenceCount">반복 횟수</label><input id="recurrenceCount" type="number" min="2" value="4">
-        </div>
-        <div id="meetingOptions" hidden>
-          <label class="check"><input id="createMeetingEvent" type="checkbox">내 일정 캘린더에도 일정 만들기</label>
-          <label class="check" id="meetRow" hidden><input id="addMeet" type="checkbox">Google Meet 링크도 만들기</label>
-        </div>
-        <button id="mainButton" type="button">예약 가능한 공간 확인</button>
-      </form>
+      </section>
+
       <div id="status" role="status" aria-live="polite"></div>
-      <p class="small">예약 버튼을 다시 눌러도 같은 요청이 중복 생성되지 않도록 보호됩니다.</p>
+      <p class="small">예약 버튼을 다시 눌러도 같은 요청이 중복 생성되지 않도록 보호됩니다. 예약 관리 번호는 다른 사람에게 전달하지 마세요.</p>
     </main>
     <script>
-      const state = { config:null, availabilityLoaded:false, requestId:null };
+      const state = { config:null, availabilityLoaded:false, requestId:null, manageToken:'', managedBooking:null, rescheduling:false };
       const el = id => document.getElementById(id);
       const status = (message,type='') => { el('status').textContent=message; el('status').className=type; el('status').style.display='block'; };
+      const clearStatus = () => { el('status').style.display='none'; el('status').textContent=''; };
+      const friendlyError = error => { const text=String(error&&error.message||error||''); if(text.includes('AUTH_REQUIRED'))return '회사 Google 계정으로 로그인한 뒤 다시 열어 주세요.';if(text.includes('ACCESS_DENIED'))return '이 조직의 계정으로만 이용할 수 있습니다.';if(text.includes('CONFIG_NOT_INSTALLED'))return '아직 조직 설정이 완료되지 않았습니다. 관리자에게 알려 주세요.';return '요청을 처리하지 못했습니다. 입력 내용과 권한을 확인해 주세요.'; };
       const fail = error => { setBusy(false); status(friendlyError(error),'error'); };
-      const friendlyError = error => {
-        const text = String(error && error.message || error || '');
-        if (text.includes('AUTH_REQUIRED')) return '회사 Google 계정으로 로그인한 뒤 다시 열어 주세요.';
-        if (text.includes('ACCESS_DENIED')) return '이 조직의 계정으로만 이용할 수 있습니다.';
-        if (text.includes('CONFIG_NOT_INSTALLED')) return '아직 조직 설정이 완료되지 않았습니다. 관리자에게 알려 주세요.';
-        return '요청을 처리하지 못했습니다. 입력 내용을 확인하고 다시 시도해 주세요.';
-      };
-      const setBusy = busy => { el('mainButton').disabled=busy; el('mainButton').textContent=busy?'확인 중…':(state.availabilityLoaded?'이 공간 예약하기':'예약 가능한 공간 확인'); };
-      const newRequestId = () => (self.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-request`);
-      const request = () => ({
-        date:el('date').value,time:el('time').value,durationMinutes:Number(el('duration').value),subject:el('subject').value,
-        roomId:el('room').value,recurring:el('recurring').checked,recurrenceCount:el('recurring').checked?Number(el('recurrenceCount').value):1,
-        createMeetingEvent:el('createMeetingEvent').checked,addMeet:el('addMeet').checked,requestId:state.requestId || (state.requestId=newRequestId())
-      });
-      function loadConfig(){ google.script.run.withSuccessHandler(config=>{state.config=config;el('title').textContent=config.appTitle;el('meetingOptions').hidden=!config.meetAvailable;const today=new Date();el('date').min=today.toISOString().slice(0,10);el('date').max=new Date(today.getTime()+config.limits.maxAdvanceDays*86400000).toISOString().slice(0,10);el('recurrenceCount').max=config.limits.maxRecurrenceCount;}).withFailureHandler(fail).getPublicConfig(); }
-      function checkAvailability(){ const data=request(); if(!el('bookingForm').reportValidity())return; setBusy(true); google.script.run.withSuccessHandler(rooms=>{setBusy(false);el('room').innerHTML='';rooms.forEach(room=>el('room').add(new Option(room.name,room.id)));if(!rooms.length){state.availabilityLoaded=false;status('선택한 시간에 예약 가능한 공간이 없습니다.','error');return;}state.availabilityLoaded=true;el('mainButton').textContent='이 공간 예약하기';status(`${rooms.length}개의 공간을 예약할 수 있습니다.`);}).withFailureHandler(fail).getAvailableRooms(data); }
-      function book(){ if(!el('bookingForm').reportValidity())return;setBusy(true);google.script.run.withSuccessHandler(result=>{setBusy(false);if(!result.ok){status(result.message,'error');return;}status([result.message].concat(result.warnings||[]).join(' '),'success');state.availabilityLoaded=false;state.requestId=null;el('mainButton').textContent='예약 가능한 공간 확인';}).withFailureHandler(fail).bookRoom(request()); }
-      el('mainButton').addEventListener('click',()=>state.availabilityLoaded?book():checkAvailability());
-      ['date','time','duration','subject','recurring','recurrenceCount'].forEach(id=>el(id).addEventListener('change',()=>{state.availabilityLoaded=false;state.requestId=null;el('mainButton').textContent='예약 가능한 공간 확인';}));
-      el('recurring').addEventListener('change',()=>el('repeatOptions').hidden=!el('recurring').checked);
-      el('createMeetingEvent').addEventListener('change',()=>{el('meetRow').hidden=!el('createMeetingEvent').checked;if(!el('createMeetingEvent').checked)el('addMeet').checked=false;});
+      const setBusy = busy => { ['mainButton','lookupButton','cancelButton','rescheduleButton'].forEach(id=>{if(el(id))el(id).disabled=busy;}); if(busy)el('mainButton').textContent='확인 중…'; else updateMainButton(); };
+      const updateMainButton = () => { el('mainButton').textContent=state.availabilityLoaded?(state.rescheduling?'이 시간으로 변경하기':'이 공간 예약하기'):'예약 가능한 공간 확인'; };
+      const newRequestId = () => (self.crypto&&crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}-request`);
+      const request = () => ({ date:el('date').value,time:el('time').value,durationMinutes:Number(el('duration').value),subject:el('subject').value,roomId:el('room').value,recurring:el('recurring').checked,recurrenceCount:el('recurring').checked?Number(el('recurrenceCount').value):1,createMeetingEvent:el('createMeetingEvent').checked,addMeet:el('addMeet').checked,requestId:state.requestId||(state.requestId=newRequestId()) });
+      function showSection(name){ const booking=name==='booking';el('bookingSection').hidden=!booking;el('manageSection').hidden=booking;el('bookingTab').classList.toggle('active',booking);el('manageTab').classList.toggle('active',!booking);clearStatus(); }
+      function loadConfig(){google.script.run.withSuccessHandler(config=>{state.config=config;el('title').textContent=config.appTitle;el('meetingOptions').hidden=!config.meetAvailable;el('manageTab').hidden=!config.managementEnabled;const today=new Date();el('date').min=today.toISOString().slice(0,10);el('date').max=new Date(today.getTime()+config.limits.maxAdvanceDays*86400000).toISOString().slice(0,10);el('recurrenceCount').max=config.limits.maxRecurrenceCount;}).withFailureHandler(fail).getPublicConfig();}
+      function renderAlternatives(items){el('alternatives').innerHTML='';if(!items||!items.length)return;const label=document.createElement('div');label.className='small';label.textContent='대신 예약할 수 있는 시간입니다.';el('alternatives').appendChild(label);items.forEach(item=>{const button=document.createElement('button');button.type='button';button.className='alternative';button.textContent=`${item.date} ${item.time} · ${item.roomName}`;button.onclick=()=>{el('date').value=item.date;el('time').value=item.time;state.availabilityLoaded=false;state.requestId=null;checkAvailability();};el('alternatives').appendChild(button);});}
+      function checkAvailability(){if(!el('bookingForm').reportValidity())return;setBusy(true);google.script.run.withSuccessHandler(result=>{setBusy(false);el('room').innerHTML='';(result.rooms||[]).forEach(room=>el('room').add(new Option(room.name,room.id)));renderAlternatives(result.alternatives);if(!result.rooms.length){state.availabilityLoaded=false;status('선택한 시간에 예약 가능한 공간이 없습니다. 아래 다른 시간을 선택해 보세요.','error');return;}state.availabilityLoaded=true;updateMainButton();status(`${result.rooms.length}개의 공간을 예약할 수 있습니다.`);}).withFailureHandler(fail).getAvailableRooms(request());}
+      function finishBooking(result){setBusy(false);renderAlternatives(result.alternatives);if(!result.ok){status(result.message,'error');return;}let message=[result.message].concat(result.warnings||[]).join(' ');if(result.managementToken){state.manageToken=result.managementToken;message+=`\n\n예약 관리 번호\n${result.managementToken}\n이 번호를 보관하면 예약을 확인·변경·취소할 수 있습니다.`;}status(message,'success');state.availabilityLoaded=false;state.requestId=null;state.rescheduling=false;el('rescheduleNotice').hidden=true;updateMainButton();}
+      function submitBooking(){if(!el('bookingForm').reportValidity())return;setBusy(true);if(state.rescheduling){google.script.run.withSuccessHandler(finishBooking).withFailureHandler(fail).rescheduleBooking(state.manageToken,request());}else{google.script.run.withSuccessHandler(finishBooking).withFailureHandler(fail).bookRoom(request());}}
+      function lookup(){const token=el('managementToken').value.trim();if(!token){status('예약 관리 번호를 입력해 주세요.','error');return;}setBusy(true);google.script.run.withSuccessHandler(booking=>{setBusy(false);state.manageToken=token;state.managedBooking=booking;el('bookingCard').hidden=false;el('bookingCard').textContent=`${booking.roomName}\n${booking.date} ${booking.time} · ${booking.durationMinutes}분\n${booking.subject}\n상태: ${booking.status}`;el('bookingCard').style.whiteSpace='pre-line';el('manageActions').hidden=booking.status!=='active';status('예약을 확인했습니다.');}).withFailureHandler(fail).getBooking(token);}
+      function beginReschedule(){const booking=state.managedBooking;if(!booking)return;state.rescheduling=true;el('rescheduleNotice').hidden=false;el('date').value=booking.date;el('time').value=booking.time;el('duration').value=String(booking.durationMinutes);el('subject').value=booking.subject;el('recurring').checked=booking.recurrenceCount>1;el('recurrenceCount').value=booking.recurrenceCount;el('repeatOptions').hidden=booking.recurrenceCount<=1;el('createMeetingEvent').checked=booking.createMeetingEvent;el('addMeet').checked=booking.addMeet;el('meetRow').hidden=!booking.createMeetingEvent;state.availabilityLoaded=false;state.requestId=null;showSection('booking');updateMainButton();}
+      function cancel(){if(!confirm('이 예약을 취소할까요? 취소된 일정은 자동으로 복구되지 않습니다.'))return;setBusy(true);google.script.run.withSuccessHandler(result=>{setBusy(false);status([result.message].concat(result.warnings||[]).join(' '),result.ok?'success':'error');if(result.ok){el('manageActions').hidden=true;state.managedBooking.status='cancelled';}}).withFailureHandler(fail).cancelBooking(state.manageToken);}
+      el('bookingTab').onclick=()=>showSection('booking');el('manageTab').onclick=()=>showSection('manage');el('mainButton').onclick=()=>state.availabilityLoaded?submitBooking():checkAvailability();el('lookupButton').onclick=lookup;el('rescheduleButton').onclick=beginReschedule;el('cancelButton').onclick=cancel;
+      ['date','time','duration','subject','recurring','recurrenceCount'].forEach(id=>el(id).addEventListener('change',()=>{state.availabilityLoaded=false;state.requestId=null;updateMainButton();}));
+      el('recurring').onchange=()=>el('repeatOptions').hidden=!el('recurring').checked;el('createMeetingEvent').onchange=()=>{el('meetRow').hidden=!el('createMeetingEvent').checked;if(!el('createMeetingEvent').checked)el('addMeet').checked=false;};
       loadConfig();
     </script>
   </body>

@@ -19,3 +19,11 @@ Read the structured result returned by `bookRoom`. Check the profile's logging m
 ## Repeat booking behaves unexpectedly
 
 Check the selected weekdays, interval, occurrence limit, time zone, and every generated date. Test with a private calendar before changing a live deployment.
+
+## A user cannot find, change, or cancel a reservation
+
+Confirm that the same Google account that created the reservation is signed in, the full management token was copied without spaces, the token has not expired, and the reservation is still active. Administrators should see only aggregate health totals; do not reveal or reset a user's token in a support conversation.
+
+## Time change created a warning
+
+Check both the old and replacement event references before retrying. A `reschedule_cleanup_pending` record means the new time was created but at least one old calendar event could not be removed. Do not create another replacement until the administrator resolves it.

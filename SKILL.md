@@ -11,6 +11,7 @@ Help a beginner create and maintain a browser-based space-booking system. The we
 
 - **New setup:** collect the minimum organization profile, generate configuration, and guide installation.
 - **Update:** inspect the current project and deployment before changing code or configuration. Preserve the existing web-app URL when the platform supports a new version on the same deployment.
+- **Booking management:** help an authorized user look up, reschedule, or cancel their own reservation with both the signed-in identity and management token. Never bypass either check.
 - **Troubleshoot:** reproduce or inspect the reported failure, distinguish permission, configuration, deployment, and booking conflicts, then propose the smallest safe fix.
 - **Export a guide:** create a portable organization guide that contains rules and room names but no credentials or unnecessary personal data.
 
@@ -29,6 +30,7 @@ For a new setup, collect:
 5. Whether to create a separate meeting calendar.
 6. Whether reservation logging is disabled, optional, or required; collect the spreadsheet ID only when enabled.
 7. Maximum duration, advance-booking window, and weekly recurrence limit, offering safe defaults.
+8. Whether confirmation email and self-service booking management are enabled, the management-token lifetime, and one or more administrator emails.
 
 Do not collect calendar or spreadsheet IDs in a public issue, public chat export, example, or repository. Store organization values in an ignored local profile during preparation and in Apps Script Properties at runtime. Never hard-code them into the reusable template.
 
@@ -39,11 +41,14 @@ Do not collect calendar or spreadsheet IDs in a public issue, public chat export
 - Show a configuration preview with IDs masked, then obtain explicit approval before writing Apps Script properties, changing a deployment, or testing against live calendars.
 - Default deployment access to the user's Google Workspace organization. Do not recommend anonymous or `Anyone` access for an owner-executed app.
 - Treat the signed-in Google account as identity. Never trust a typed name or email as proof of identity.
+- Treat management tokens as secrets: store only their digest, never log or display them to administrators, and require the same signed-in account that created the booking.
 - Check every recurrence date for conflicts while holding a script lock before creating events.
+- When a requested time is unavailable, offer a small set of conflict-checked alternatives without booking any of them automatically.
+- For rescheduling, create and verify the replacement before deleting the old events. If cleanup is incomplete, mark the record for administrator attention instead of claiming success.
 - Do not report complete success when calendar creation, Meet creation, or required logging failed. Return a plain-language status and the next safe action.
 - Preserve the current deployment URL when updating an existing deployment unless the user approves a new URL.
 - Never delete existing calendar events, logs, deployments, or projects merely to repair installation. Require an exact target and approval.
 
 ## Completion
 
-For a setup or update, report what was configured, what remains for the user, the deployment access level, the tested scenarios, and any warnings. A setup is complete only after the web page loads, availability can be checked, a dedicated test booking succeeds, a deliberate conflict is rejected, and the test event is removed with user approval.
+For a setup or update, report what was configured, what remains for the user, the deployment access level, the tested scenarios, and any warnings. A setup is complete only after the web page loads, availability can be checked, a dedicated test booking succeeds, a deliberate conflict offers alternatives, management lookup works, rescheduling is verified, and the test booking is cancelled with user approval.
